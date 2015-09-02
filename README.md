@@ -14,3 +14,15 @@ number generators and a simple digital filter implementation.
 
 Inspired partly by K, Q and other functional languages, and
 the open source tool R.
+
+imported into git from http://code.google.com/p/vfuncs/ the
+code.google repo contains no code, but does contain hosted
+binaries:
+
+```
+ec90f5a50c7e76f099bd2ab0de8fe92af6bcf2c6  kth_moments.20090208.tgz
+833356139e822fd3a0e497362778a7ee5926515b  kth_moments.cpp
+dec66e6c6cac026e834c9aa37e92de5ab8ec9b87  vfuncs-0.6.1.tar.gz
+6722cc78c1afe43600250781e1ce449a1a5ac441  vfuncs-0.6.5.tar.gz
+e978c6bacf6d3961abee4974d924151b335d4944  vfuncs-0.6.7.tar.gz
+```
