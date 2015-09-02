@@ -1,0 +1,83 @@
+
+
+    Atto language
+
+        (let clause - to define replacement params...
+            on stack or env??  - we can use env like a stack
+
+        (defun func (argnames spec) (func body) )
+            envs need a scope - args on the stack [slot determined by order - keep a param symbol
+
+        pass function as an argument - map map2 ...
+
+        Array handling...  so we handle datatypes - double and array of double variants
+
+        performance
+
+        Curry/closure - map map2 reduce dotproduct filter convolution
+
+
+        
+            
+    Map
+
+        V vmap(V v, fop2 f2, Val v)
+            foreach x in v call f2(x, v)
+
+        V vmap2(V v1, V v2, fop3 f, Val v)
+            for each i call f3(v1[i], v2[i], v)
+
+        V vnewinterp(V v, int n)        //interpolate from V.n elements to n elements [up or down]
+
+
+    Currying - replacement params [ using an array of Variant V params]
+
+        map(V v, fn f, T A, int slot)
+            for each x in v - 
+            {
+                A[slot]=x;              //replace the arg at slot with x
+                f(A);
+            }
+
+        map2(V va, V vb, fn f, T A, int sa, int sb)          //pass the function, args and which args to replace
+            for each i -
+                args[sa]=va[i];
+                args[sb]=vb[i];
+                f(A);                           //its up to f to use A[sa] and A[sb] 
+                                                //and fill in any args and call another function
+                                                //and accumulate results into A[j]
+
+        usage -
+           map(v, vmul2, args, 0, 1, 2);
+                
+
+    Demand Load - chunks of the file are demand loaded into ram as needed
+
+        porting from V { p, n } ... so we need to intercept access to p directly
+
+            1) we port to this api first with a single buffer impl [and check performance compared to pure arrays]
+            
+            freelist where each block of 4M is allocated seperately, 1 aloc per block chunk
+
+            replace - p[i] rvalue by v->get(i)
+               assignment
+                  p[i]= lvalue by v->set(i, f)
+                  p[i]++ += by    v->add(
+               window moving
+                  p++, p+= p= with  v->mov(int n)  which does v->npos+=n
+
+            //TODO - open() check O_DIRECT, and LARGEFILE for 64 bit file [check with 20Gb] 
+
+            2) we get dynamic load and store working
+
+            3) release it, test it, blog it ... then ...
+
+            4) variants to handle u64,s64,u32,s32,u16,s16,u8,s8, and variable length strings varchar
+
+            4) get multitreading working and nice packaging and build for windows.
+
+            5) data feeds, csv import/export, odbc
+
+            6) query language
+        
+
