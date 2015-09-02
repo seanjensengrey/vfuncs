@@ -2,6 +2,69 @@
 //  atto.c - attolisp bytecode machine and lexer+parser
 //
 //
+
+/*
+    Language 'attolisp' -
+      
+        pa_eval(" (sqrt (sum (sqr a) (sqr b)) )");
+      
+        lexer patterns -
+            lettr: [a..z]
+            alpha: {lettr}+
+            dig  : [0..9]
+            digs : {dig}+
+      
+        lexer tokens -
+            left : (
+            right: )
+            const: {[+-]}digs{.digs{{[+-]}digs}}    // 123 0.123  +0.34e-34 
+            ident: alpha{alpha|_|-|dig}*            //inbuilt and defun'd functions in the symbol table
+      
+        grammar -
+            expr : left func args right 
+            args : arg args | empty
+            arg  : ident | const | expr
+            func : ident 
+
+        grammar todo -
+            extend -  (defun funcname ( a b c ) ( ... ))
+            extend let - curry/replace args from environment via let func
+
+
+    Bytecode Machine - Stack frame
+    
+        We keep the results of the function calls as the latest item on the stack,
+        so we can use them directly as args to the next function call.
+
+        When we CALL an inbuilt function we need to store the return information -
+        namely where to return to after the subroutine - the ip instruction pointer.
+
+        see >> below, which shows the 4 items we keep on the frame - 
+            res - result
+            nargs - arg count
+            oip - old ip [instruction pointer]
+            ofp - old frame pointer, so we can pop the frame.
+  
+        eg. stack frame - just after a CALL
+      
+            arg 0
+            ...
+            arg n-1
+        >>  res   slot  - used by CALLNAT not used by call
+        >>  nargs slot  - as a check
+        >>  oip   slot  - old ip to restore to on ret
+        >>  ofp   slot  - old frame pointer to restore to on ret
+            ...
+            ... local stack storage for this call and its sub calls goes here ...
+            ...
+      
+        eg. stack frame - just after RET
+      
+            arg 0 <--- replaced by the return value of the CALL   
+
+            nb. we currently assume all funcs have 1 return value
+
+*/
 #define _GNU_SOURCE 
 #include <stdio.h>
 #include <assert.h>
@@ -100,6 +163,60 @@ inbuiltinfo inbuilts[] =
     {NAT_NORM2, 2,1,    hypotf, hypot,  hypotl},
 };
 
+
+// hand crafted bytecode test runs
+
+int bc_hypot[]=
+{
+    BC_PUSHENV, 0, 
+    BC_PUSHENV, 1,            
+    BC_CALLNAT, 2, NAT_NORM2,
+    BC_POPENV,  2,          
+    BC_STOP,
+};
+
+int bc_norm2[]=
+{
+    BC_PUSHENV, 0,
+    BC_CALLNAT, 1, NAT_SQR,
+    BC_PUSHENV, 1,
+    BC_CALLNAT, 1, NAT_SQR,
+    BC_CALLNAT, 2, NAT_ADD, 
+    BC_CALLNAT, 1, NAT_SQRT,
+    BC_POPENV,  2,
+    BC_STOP,
+};
+
+int bc_test[]=
+{
+    BC_PUSHENV, 0,
+    BC_CALLNAT, 1, NAT_SQR,
+    BC_POPENV,  2,
+    BC_STOP,
+};
+
+int bc_norm2subcall[]= 
+{
+    BC_PUSHENV,     0, 
+    BC_PUSHENV,     1,            
+    BC_CALL,        2, SUB_NORM,        //lookup the sub in the symbol table [pos SUB_NORM]
+    BC_POPENV,      2,          
+    BC_STOP,
+                                        //eval(" (sqrt (sum (sqr a) (sqr b)) )");
+///
+    BC_PUSHFRAME,   0,                  //get a and sqr it
+    BC_CALLNAT,     1, NAT_SQR,
+    BC_PUSHFRAME,   1,                  //get b and sqr it
+    BC_CALLNAT,     1, NAT_SQR,
+    BC_CALLNAT,     2, NAT_ADD, 
+    BC_CALLNAT,     1, NAT_SQRT,
+    BC_POPFRAME,    0,                  //put result of combined computations into the result slot on the frame
+    BC_RET,
+    BC_STOP,
+};
+
+
+
 // stack frame helpers
 
 T       st_frame(T sp, int nargs, int nip, int nfp);    //set up stack frame, return new stack pointer
@@ -107,39 +224,6 @@ T       st_arg(T sp, int nth);                          // points to nth arg on 
 T       st_res(T sp);                                   // points to result slot on the stack frame
 int     st_oip(T sp);                                   // points to old ip on the frame - thats where RET will jump back to on return from a CALL
 int     st_ofp(T fp);
-
-
-// stack frame ///////////
-//
-//  push a
-//  push b
-//  call 2 nfunc        // adds | res nargs=2 opi=ip xx |   to stack before jumping to ip=nfunc
-//
-//  // st : a b | res nargs oip xx |   we keep res as a temp slot, then copy back to arg[0] so only 1 result left after return
-//
-//  after return 
-// 
-
-
-
-// stack frame - just after a CALL
-//
-//  arg 0
-//  ...
-//  arg n-1
-//  res   slot  - used by CALLNAT not used by call
-//  nargs slot  - as a check
-//  oip   slot  - old ip to restore to on ret
-//  ofp   slot  - old frame pointer to restore to on ret
-//  ...
-//  ... local stack storage for this call and its sub calls goes here ...
-//  ...
-//
-//  stack frame after RET
-//
-//  arg 0 <--- replaced by the return value of the CALL   //assumes all funcs have 1 return value
-
-
 
 
 // stack frame helpers
@@ -194,7 +278,7 @@ void trace_ts(T t, T te)
         switch (t->t)
         {
             case ti32:  printf("TT ti32 : %d\n", t->I32); break;
-            case td:    printf("TT td   : %2.3f\n", t->d); break;
+            case td:    printf("TT td   : %2.3g\n", t->d); break;
             default:    printf("TT      :\n"); break;
         }
     }
@@ -346,32 +430,6 @@ int bc_run(int* bytes, int nbytes, T env, int nenv, sym* syms, int nsyms)
     return 0;
 }
 
-// pa_eval(" (sqrt (sum (sqr a) (sqr b)) )");
-//
-//  attolisp grammar -
-//
-//    lexer patterns -
-//      lettr: [a..z]
-//      alpha: {lettr}+
-//      dig  : [0..9]
-//      digs : {dig}+
-//
-//    lexer tokens -
-//      left : (
-//      right: )
-//      const: {[+-]}digs{.digs{{[+-]}digs}}         // 123 0.123  +0.34e-34 
-//      ident: alpha{alpha|_|-|dig}*          //inbuilt and defun'd functions in the symbol table
-//
-//    nonterminals -
-//      
-//      expr : left func args right 
-//      args : arg args | empty
-//      arg  : ident | const | expr
-//      func : ident 
-//
-//  expression evaluator [just nested known funcs... 
-//      TODO    extend -  (defun funcname ( a b c ) ( ... ))
-//      TODO    extend let - curry/replace args from environment via let func
 
 
 inline char* pa_skipws(char* s)
@@ -735,7 +793,7 @@ int pa_expr(PA* pa)
                     break;
 
             case TOK_LEFT : 
-                    pa_poptoken(pa);                            //undo the parse of left, so expr can chew it
+                    pa_poptoken(pa);    //undo the parse of left, so expr can chew it
                     if(pa_expr(pa))
                         goto bad;
                     break;
@@ -790,4 +848,10 @@ void pa_run(PA* pa)
     printf("\n");
 }
 
+double  pa_result(PA* pa)
+{
+    T v=&pa->envs[pa->nenv-1];
+    assert(v && v->t==td);
+    return v->d;
+}
 ///

@@ -17,10 +17,14 @@
 
         An experiment inspired by functional languages and stream databases.
 
+        attolisp is the nascent lisp-like scripting language impl in C.
+
     Build
 
-        $> make sc
+        $> make
         $> ./sc
+
+        $> ./attotest "(sqrt (add (sqr 3) (sqr 4)))"
 
     Performance
 

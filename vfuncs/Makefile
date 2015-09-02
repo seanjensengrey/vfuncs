@@ -11,8 +11,8 @@ attotest: attotest.c atto.c atto.h variant.h
 	gcc -Wall -lm attotest.c atto.c -o attotest
 	
 backup:
-	echo BACKUP to - ~/zz/vfuncs-0.7.0.`date +%Y%m%d_%H%M%S`.tgz ; 
-	tar -zcvf ~/zz/vfuncs-0.7.0.`date +%Y%m%d_%H%M%S`.tgz ../vfuncs-0.7.0; 
+	echo BACKUP to - ~/zz/vfuncs-0.6.7.`date +%Y%m%d_%H%M%S`.tgz ; 
+	tar -zcvf ~/zz/vfuncs-0.6.7.`date +%Y%m%d_%H%M%S`.tgz ../vfuncs-0.6.7; 
 
 clean: 
 	rm -f sc scd sc_var attotest *.o *.so

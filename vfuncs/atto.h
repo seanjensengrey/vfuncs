@@ -127,6 +127,7 @@ typedef struct _PA
 PA*     pa_init(char* sz);
 int     pa_parse(PA* pa);
 void    pa_run(PA* pa);
+double  pa_result(PA* ps);
 void    pa_free(PA* pa);
 
 ///
